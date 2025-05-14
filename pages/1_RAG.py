@@ -1,6 +1,7 @@
 import streamlit as st
 import uuid
 from utils.api import ask_rag
+import requests
 
 st.set_page_config(page_title="Chat Clásico", layout="centered")
 st.title("💬 Chat RAG (Clásico)")
@@ -53,8 +54,23 @@ if prompt:
     chat_history.append({"role": "user", "content": prompt})
     st.chat_message("user").markdown(prompt)
 
-    with st.spinner("Pensando..."):
-        answer = ask_rag(prompt, thread_id=st.session_state.active_chat)
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        full_response = ""
 
-    chat_history.append({"role": "assistant", "content": answer})
-    st.chat_message("assistant").markdown(answer)
+        response = requests.post(
+            "http://backend:8000/ask",
+            json={"question": prompt, "thread_id": st.session_state.active_chat},
+            stream=True,
+        )
+        response.raise_for_status()
+
+        for line in response.iter_lines(decode_unicode=True):
+            if line:
+                full_response += line
+                message_placeholder.markdown(full_response + "▌")
+
+        message_placeholder.markdown(full_response)
+
+    chat_history.append({"role": "assistant", "content": full_response})
+
