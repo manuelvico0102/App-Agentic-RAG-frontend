@@ -2,6 +2,12 @@ import streamlit as st
 import requests
 import uuid
 
+# Función para crear un nuevo chat
+def create_new_chat():
+    thread_id = str(uuid.uuid4())
+    st.session_state.chats[thread_id] = []
+    st.session_state.current_chat = thread_id
+
 API_URL = "http://backend:8000/streaming-rag/submit-messages/stream"
 
 st.set_page_config(page_title="RAG MultiChat", layout="wide")
@@ -12,13 +18,6 @@ if "chats" not in st.session_state:
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = None
 
-# Función para crear un nuevo chat
-def create_new_chat():
-    thread_id = str(uuid.uuid4())
-    st.session_state.chats[thread_id] = []
-    st.session_state.current_chat = thread_id
-
-# Sidebar: Lista de chats
 st.sidebar.title("Chats")
 for thread_id in st.session_state.chats:
     button_label = f"🗨️ {thread_id[:8]}"
@@ -39,7 +38,10 @@ chat_history = st.session_state.chats[current_id]
 
 # Mostrar historial
 for entry in chat_history:
-    st.chat_message(entry["role"]).write(entry["content"])
+    with st.chat_message(entry["role"]):
+        for line in entry["content"].split("\n"):
+            st.write(line)
+
 
 # Entrada del usuario
 if prompt := st.chat_input("Haz una pregunta..."):
@@ -54,9 +56,11 @@ if prompt := st.chat_input("Haz una pregunta..."):
                 json={"question": prompt, "thread_id": current_id},
                 stream=True,
             )
-            answer = ""
+            chunks = []
             for chunk in response.iter_lines(decode_unicode=True):
                 if chunk:
                     st.write(chunk)
-                    answer += chunk
+                    chunks.append(chunk)
+            answer = "\n".join(chunks)
+
             st.session_state.chats[current_id].append({"role": "assistant", "content": answer})
